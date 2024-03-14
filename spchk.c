@@ -49,8 +49,6 @@ int charToIndex(char c) {
 void insertWord(TrieNode* root, const char* word) {
     TrieNode* crawl = root;
     for (int i = 0; word[i]; i++) {
-        if (!isalpha(word[i])) continue; // Ignore non-alphabetical characters
-
         int index = charToIndex(word[i]);
         if (!crawl->children[index]) {
             crawl->children[index] = getNewTrieNode();
@@ -70,8 +68,6 @@ void insertWord(TrieNode* root, const char* word) {
 bool searchWord(TrieNode* root, const char* word) {
     TrieNode* crawl = root;
     for (int i = 0; word[i]; i++) {
-        if (!isalpha(word[i])) continue; // Ignore non-alphabetical characters
-
         int index = charToIndex(word[i]);
         if (!crawl->children[index]) return false;
         crawl = crawl->children[index];
@@ -79,7 +75,7 @@ bool searchWord(TrieNode* root, const char* word) {
     return (crawl != NULL && crawl->isEndOfWord);
 }
 
-// Free the trie memory
+// Free the trie memory recursively
 void freeTrie(TrieNode* root) {
     if (root == NULL) return;
     for (int i = 0; i < ALPHABET_SIZE; i++) {
