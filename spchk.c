@@ -60,6 +60,12 @@ void insertWord(TrieNode* root, const char* word) {
     crawl->isEndOfWord = true;
 }
 
+//ignore punctation at end of word
+//ignore ' " ( { [ at start of word
+//hyphenated words are correct if all component words are correctly spelled
+// hello (OG), Hello (first cap), HELLO (all caps)-> correct 
+// MacDonald (OG), MACDONALD (all caps)-> correct
+
 // Search for a word in the trie
 bool searchWord(TrieNode* root, const char* word) {
     TrieNode* crawl = root;
@@ -84,22 +90,42 @@ void freeTrie(TrieNode* root) {
 
 // Load the dictionary
 void loadDictionary(TrieNode* root, const char* dictionaryPath) {
-    FILE *file = fopen(dictionaryPath, "r");
-    if (!file) {
+    int fd = open(dictionaryPath, O_RDONLY);
+    if (fd < 0) {
         perror("Unable to open the dictionary file");
         exit(EXIT_FAILURE);
     }
 
-    char word[BUFFER_SIZE];
-    while (fgets(word, BUFFER_SIZE, file)) {
-        size_t len = strlen(word);
-        if (len > 0 && (word[len - 1] == '\n' || word[len - 1] == '\r')) {
-            word[len - 1] = '\0';
+    char buf[BUFFER_SIZE];
+    int bytes_read;
+    int word_index = 0;
+    char word[BUFFER_SIZE] = {0};
+
+    while ((bytes_read = read(fd, buf, sizeof(buf)-1)) > 0) {
+        for (int i = 0; i < bytes_read; ++i) {
+            if (buf[i] == '\n' || buf[i] == '\r') {
+                if (word_index > 0) { // We have a complete word to process
+                    word[word_index] = '\0'; // Null-terminate the word
+                    insertWord(root, word);
+                    word_index = 0; // Reset for the next word
+                }
+            } else {
+                word[word_index++] = buf[i];
+            }
         }
+    }
+    if (word_index > 0) { // Insert last word if exists
+        word[word_index] = '\0';
         insertWord(root, word);
     }
-    fclose(file);
+    close(fd);
 }
+
+
+//number all lines (vertically) and each line has columns (horizontally)
+//track word col and line number. col # is word's first char
+//words are sequences of non-whitespace characters
+//every time finds an incorrect word, report the word along with the file, the line, and column number
 
 // Process a line from a file
 void processLine(char *line, TrieNode *root, const char* filePath, long lineNo) {
@@ -121,26 +147,47 @@ void processLine(char *line, TrieNode *root, const char* filePath, long lineNo) 
 }
 
 // Process a file
+//Must print error if file can't be opened 
 void processFile(const char *filePath, TrieNode *root) {
-    FILE *file = fopen(filePath, "r");
-    if (!file) {
+    int fd = open(filePath, O_RDONLY);
+    if (fd < 0) {
         perror("Failed to open file");
         return;
     }
 
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    long lineNo = 0;
-    while ((read = getline(&line, &len, file)) != -1) {
-        lineNo++;
+    char buf[BUFFER_SIZE];
+    int bytes_read;
+    char *line = malloc(BUFFER_SIZE * sizeof(char)); // Dynamically allocate line buffer
+    size_t line_capacity = BUFFER_SIZE;
+    size_t line_length = 0;
+    long lineNo = 1;
+
+    while ((bytes_read = read(fd, buf, sizeof(buf)-1)) > 0) {
+        for (int i = 0; i < bytes_read; ++i) {
+            if (buf[i] == '\n') {
+                line[line_length] = '\0'; // Null-terminate the line
+                processLine(line, root, filePath, lineNo++);
+                line_length = 0; // Reset for the next line
+            } else {
+                if (line_length >= line_capacity - 1) { // Check if buffer is full
+                    line_capacity *= 2; // Double the capacity
+                    line = realloc(line, line_capacity * sizeof(char)); // Reallocate with new capacity
+                }
+                line[line_length++] = buf[i];
+            }
+        }
+    }
+    if (line_length > 0) { // Process last line if exists
+        line[line_length] = '\0';
         processLine(line, root, filePath, lineNo);
     }
-
     free(line);
-    fclose(file);
+    close(fd);
 }
 
+
+//Check spelling in all files end w .txt (in any order)
+//Ignore files/dir who begin w . 
 // Traverse a directory recursively
 void traverseDirectory(const char *dirPath, TrieNode *root) {
     DIR *dir = opendir(dirPath);
@@ -162,11 +209,15 @@ void traverseDirectory(const char *dirPath, TrieNode *root) {
         }
 
         if (S_ISDIR(entryStat.st_mode)) traverseDirectory(fullPath, root);
-        else if (S_ISREG(entryStat.st_mode) && strstr(fullPath, ".txt")) processFile(fullPath, root);
+        else if (S_ISREG(entryStat.st_mode) && strstr(fullPath, ".txt")) processFile(fullPath, root); 
     }
 
     closedir(dir);
 }
+
+// first arg is dictionary file path
+// other args after are txt files/directories paths
+// exist with status EXIT_SUCCESS if all files could be opened and contained no incorrect words or EXIT_FAILURE otherwise 
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
