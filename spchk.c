@@ -17,24 +17,265 @@ typedef struct TrieNode {
     bool isEndOfWord;
 } TrieNode;
 
-// Function declarations
+// Function declarations --------------------------------------------------------
+
+// Trie-related operations
 TrieNode* getNewTrieNode(void);
 void insertWord(TrieNode* root, const char* word);
 bool searchWord(TrieNode* root, const char* word);
 void freeTrie(TrieNode* root);
-void loadDictionary(TrieNode* root, const char* dictionaryPath);
-void processFile(const char *filePath, TrieNode* root);
-void traverseDirectory(const char *dirPath, TrieNode* root);
-void processLine(char *line, TrieNode *root, const char* filePath, long lineNo);
+
+// Utility functions
+bool isAllUpperCase(const char *word);
+bool hasOnlyFirstLetterCapitalized(const char *word);
+int charToIndex(char c);
+
+// Processing functions
+bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long lineNo, int columnNo);
+bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo);
+bool processFile(const char *filePath, TrieNode *root);
+bool traverseDirectory(const char *dirPath, TrieNode *root);
+bool isValidWordChar(char c, bool start);
+
+// Main entry
+int main(int argc, char *argv[]);
+
+// SECTION 4 ----------------------------------------------------------------
+// Checking whether a word is contained in the dictionary
+
+// Check if word is all capitalized
+bool isAllUpperCase(const char *word) {
+    while (*word) {
+        if (isalpha(*word) && islower(*word)) return false;
+        ++word;
+    }
+    return true;
+}
+
+// Check if word has only first letter captilized 
+bool hasOnlyFirstLetterCapitalized(const char *word) {
+    if (!isupper(word[0])) return false;
+    for (int i = 1; word[i]; ++i) {
+        if (isupper(word[i])) return false;
+    }
+    return true;
+}
+
+// RULE: hello (OG), Hello (first cap), HELLO (all caps)-> correct 
+// RULE: MacDonald (OG), MACDONALD (all caps)-> correct
+bool searchWord(TrieNode* root, const char* word) {
+    // First check: if the word is all caps. HELLO == hEllO
+    if (isAllUpperCase(word)) {
+        TrieNode* crawl = root;
+        for (int i = 0; word[i]; i++) {
+            int index = charToIndex(toupper(word[i])); // Convert to uppercase and then find the index
+            if (!crawl->children[index]) return false;
+            crawl = crawl->children[index];
+        }
+        if (crawl != NULL && crawl->isEndOfWord) return true;
+    }
+
+    // Second check: if the word has only the first letter capitalized. Hello == hello
+    if (hasOnlyFirstLetterCapitalized(word)) {
+        TrieNode* crawlFirstCapital = root;
+        // Convert the first letter of the word to lowercase for comparison
+        char lowerFirstLetter = tolower(word[0]);
+        // Get the index corresponding to the lowercase first letter
+        int index = charToIndex(lowerFirstLetter);
+        if (!crawlFirstCapital->children[index]) {
+            return false;
+        }
+    }
+
+    // Third check: exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
+    TrieNode* crawlExact = root;
+    for (int i = 0; word[i]; i++) {
+        int index = charToIndex(word[i]);
+        if (!crawlExact->children[index]) {
+            // If any character of the word is not found in the trie, return false
+            return false;
+        }
+        crawlExact = crawlExact->children[index];
+    }
+    // Check if the traversal reaches the end of a word in the trie
+    if (crawlExact != NULL && crawlExact->isEndOfWord) return true;
+
+    // If none of the conditions are met, the word is not in the dictionary
+    return false;
+}
+
+//number all lines (vertically) and each line has columns (horizontally)
+//track word col and line number. col # is word's first char
+//words are sequences of non-whitespace characters
+
+// Check if a character is a valid word character
+//RULE: ignore punctation at end of word
+//RULE: ignore ' " ( { [ at start of word
+bool isValidWordChar(char c, bool start) {
+    if (isalpha(c) || c == '-') return true;
+    if (start && (c == '\'' || c == '"' || c == '(' || c == '{' || c == '[')) return false;
+    return !start; // If not the start, it's a valid character (handles end punctuation)
+}
+
+// Report a word if it's not found in the trie. Returns true if an incorrect word was found, false otherwise
+//RULE: every time finds an incorrect word, report the word along with the file, the line, and column number
+bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long lineNo, int columnNo) {
+    if (!searchWord(root, word)) {
+        printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, word);
+        return true; // Incorrect word found
+    }
+    return false; // No incorrect word found
+}
+
+// Process a line from a file, checking each word against a trie data structure. Returns true if an incorrect word was found, false otherwise
+// RULE: hyphenated words are correct if all component words are correctly spelled
+// Returns true if any incorrect word was found in the line, false otherwise
+bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo) {
+    char word[BUFFER_SIZE];
+    int wordIndex = 0;
+    int columnNo = 1;
+    int startColumn = 0;
+    bool foundIncorrectWord = false;
+
+    for (int i = 0; line[i] != '\0'; i++) {
+        if (isValidWordChar(line[i], wordIndex == 0)) {
+            if (wordIndex == 0) startColumn = columnNo;
+            word[wordIndex++] = line[i];
+        } else if (wordIndex > 0) {
+            word[wordIndex] = '\0';
+            
+            char *component = strtok(word, "-");
+            int componentColumn = startColumn;
+            while (component != NULL) {
+                if (checkAndReportWord(component, root, filePath, lineNo, componentColumn)) {
+                    foundIncorrectWord = true;
+                }
+                component = strtok(NULL, "-");
+                if (component != NULL) componentColumn += strlen(component) + 1;
+            }
+            wordIndex = 0;
+        }
+        columnNo++;
+    }
+
+    if (wordIndex > 0) {
+        word[wordIndex] = '\0';
+        if (checkAndReportWord(word, root, filePath, lineNo, startColumn)) {
+            foundIncorrectWord = true;
+        }
+    }
+
+    return foundIncorrectWord;
+}
+
+
+// SECTION 3 ----------------------------------------------------------------
+//Reading the file and generating a sequence of position-annotated words
+
+//RULE: Must print error if file can't be opened. 
+// Returns true if any incorrect word was found in the file, false otherwise
+bool processFile(const char *filePath, TrieNode *root) {
+    int fd = open(filePath, O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open file");
+        return true; // Treat inability to open file as an error
+    }
+
+    char buf[BUFFER_SIZE];
+    int bytes_read;
+    char *line = malloc(BUFFER_SIZE * sizeof(char));
+    if (!line) {
+        perror("Memory allocation failed for line buffer");
+        close(fd);
+        return true; // Memory allocation failure is treated as an error
+    }
+    size_t line_capacity = BUFFER_SIZE;
+    size_t line_length = 0;
+    long lineNo = 1;
+    bool foundIncorrectWord = false;
+
+    while ((bytes_read = read(fd, buf, sizeof(buf)-1)) > 0) {
+        for (int i = 0; i < bytes_read; ++i) {
+            if (buf[i] == '\n') {
+                line[line_length] = '\0';
+                if (processLine(line, root, filePath, lineNo++)) {
+                    foundIncorrectWord = true;
+                }
+                line_length = 0;
+            } else {
+                line[line_length++] = buf[i];
+            }
+        }
+    }
+    if (line_length > 0) {
+        line[line_length] = '\0';
+        if (processLine(line, root, filePath, lineNo)) {
+            foundIncorrectWord = true;
+        }
+    }
+    free(line);
+    close(fd);
+
+    return foundIncorrectWord;
+}
+
+
+
+// SECTION 2 ----------------------------------------------------------------
+//Finding and opening all the specified files, including directory traversal
+
+//Check spelling in all files end w .txt (in any order)
+//Ignore files/dir who begin w . 
+// Traverse a directory recursively
+bool traverseDirectory(const char *dirPath, TrieNode *root) {
+    DIR *dir = opendir(dirPath);
+    if (!dir) {
+        perror("Failed to open directory");
+        return true; // Indicate an error
+    }
+
+    struct dirent *entry;
+    char fullPath[1024];
+    struct stat entryStat;
+    bool foundIncorrectWord = false; // Flag to track if any incorrect words are found
+
+    while ((entry = readdir(dir))) {
+        if (entry->d_name[0] == '.') continue; // Skip hidden files and directories
+
+        snprintf(fullPath, sizeof(fullPath), "%s/%s", dirPath, entry->d_name);
+        if (stat(fullPath, &entryStat)) {
+            perror("Failed to get file status");
+            continue;
+        }
+
+        if (S_ISDIR(entryStat.st_mode)) {
+            if (traverseDirectory(fullPath, root)) {
+                foundIncorrectWord = true;
+            }
+        } else if (S_ISREG(entryStat.st_mode) && strstr(fullPath, ".txt")) {
+            if (processFile(fullPath, root)) {
+                foundIncorrectWord = true;
+            }
+        }
+    }
+
+    closedir(dir);
+    return foundIncorrectWord; // Return whether any incorrect words were found
+}
+
+// SECTION 1 ----------------------------------------------------------------
+//Reads dictionary file into trie 
 
 // Create a new trie node
 TrieNode* getNewTrieNode(void) {
     TrieNode* pNode = (TrieNode*)malloc(sizeof(TrieNode));
-    if (pNode) {
+    if (!pNode) {
+        fprintf(stderr, "Memory allocation failed for new TrieNode.\n");
+        exit(EXIT_FAILURE);
+    }
         pNode->isEndOfWord = false;
         for (int i = 0; i < ALPHABET_SIZE; i++) {
             pNode->children[i] = NULL;
-        }
     }
     return pNode;
 }
@@ -56,23 +297,6 @@ void insertWord(TrieNode* root, const char* word) {
         crawl = crawl->children[index];
     }
     crawl->isEndOfWord = true;
-}
-
-//ignore punctation at end of word
-//ignore ' " ( { [ at start of word
-//hyphenated words are correct if all component words are correctly spelled
-// hello (OG), Hello (first cap), HELLO (all caps)-> correct 
-// MacDonald (OG), MACDONALD (all caps)-> correct
-
-// Search for a word in the trie
-bool searchWord(TrieNode* root, const char* word) {
-    TrieNode* crawl = root;
-    for (int i = 0; word[i]; i++) {
-        int index = charToIndex(word[i]);
-        if (!crawl->children[index]) return false;
-        crawl = crawl->children[index];
-    }
-    return (crawl != NULL && crawl->isEndOfWord);
 }
 
 // Free the trie memory recursively
@@ -117,103 +341,9 @@ void loadDictionary(TrieNode* root, const char* dictionaryPath) {
     close(fd);
 }
 
-
-//number all lines (vertically) and each line has columns (horizontally)
-//track word col and line number. col # is word's first char
-//words are sequences of non-whitespace characters
-//every time finds an incorrect word, report the word along with the file, the line, and column number
-
-// Process a line from a file
-void processLine(char *line, TrieNode *root, const char* filePath, long lineNo) {
-    const char *delimiters = " \t\n.,;:!?'\"()[]{}";
-    char *token, *rest = line;
-    int tokenStart = 0;
-    while ((token = strtok_r(rest, delimiters, &rest))) {
-        int tokenLen = strlen(token);
-        // Calculate the start position of the token in the line
-        char *found = strstr(line + tokenStart, token);
-        if (found) {
-            int columnNo = found - line + 1; // Column numbers start at 1
-            if (!searchWord(root, token)) {
-                printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, token);
-            }
-            tokenStart = columnNo + tokenLen - 1; // Update tokenStart to the end of the current token
-        }
-    }
-}
-
-// Process a file
-//Must print error if file can't be opened 
-void processFile(const char *filePath, TrieNode *root) {
-    int fd = open(filePath, O_RDONLY);
-    if (fd < 0) {
-        perror("Failed to open file");
-        return;
-    }
-
-    char buf[BUFFER_SIZE];
-    int bytes_read;
-    char *line = malloc(BUFFER_SIZE * sizeof(char)); // Dynamically allocate line buffer
-    size_t line_capacity = BUFFER_SIZE;
-    size_t line_length = 0;
-    long lineNo = 1;
-
-    while ((bytes_read = read(fd, buf, sizeof(buf)-1)) > 0) {
-        for (int i = 0; i < bytes_read; ++i) {
-            if (buf[i] == '\n') {
-                line[line_length] = '\0'; // Null-terminate the line
-                processLine(line, root, filePath, lineNo++);
-                line_length = 0; // Reset for the next line
-            } else {
-                if (line_length >= line_capacity - 1) { // Check if buffer is full
-                    line_capacity *= 2; // Double the capacity
-                    line = realloc(line, line_capacity * sizeof(char)); // Reallocate with new capacity
-                }
-                line[line_length++] = buf[i];
-            }
-        }
-    }
-    if (line_length > 0) { // Process last line if exists
-        line[line_length] = '\0';
-        processLine(line, root, filePath, lineNo);
-    }
-    free(line);
-    close(fd);
-}
-
-
-//Check spelling in all files end w .txt (in any order)
-//Ignore files/dir who begin w . 
-// Traverse a directory recursively
-void traverseDirectory(const char *dirPath, TrieNode *root) {
-    DIR *dir = opendir(dirPath);
-    if (!dir) {
-        perror("Failed to open directory");
-        return;
-    }
-
-    struct dirent *entry;
-    char fullPath[1024];
-    struct stat entryStat;
-    while ((entry = readdir(dir))) {
-        if (entry->d_name[0] == '.') continue; // Skip hidden files and directories
-
-        snprintf(fullPath, sizeof(fullPath), "%s/%s", dirPath, entry->d_name);
-        if (stat(fullPath, &entryStat)) {
-            perror("Failed to get file status");
-            continue;
-        }
-
-        if (S_ISDIR(entryStat.st_mode)) traverseDirectory(fullPath, root);
-        else if (S_ISREG(entryStat.st_mode) && strstr(fullPath, ".txt")) processFile(fullPath, root); 
-    }
-
-    closedir(dir);
-}
-
-// first arg is dictionary file path
-// other args after are txt files/directories paths
-// exist with status EXIT_SUCCESS if all files could be opened and contained no incorrect words or EXIT_FAILURE otherwise 
+// RULE:first arg is dictionary file path
+// RULE: other args after are txt files/directories paths
+// RULE: exist with status EXIT_SUCCESS if all files could be opened and contained no incorrect words or EXIT_FAILURE otherwise 
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
@@ -224,17 +354,27 @@ int main(int argc, char *argv[]) {
     TrieNode* root = getNewTrieNode();
     loadDictionary(root, argv[1]);
 
+    bool foundError = false;
     for (int i = 2; i < argc; i++) {
         struct stat pathStat;
         if (stat(argv[i], &pathStat)) {
             perror("Failed to get path status");
+            foundError = true;
             continue;
         }
 
-        if (S_ISDIR(pathStat.st_mode)) traverseDirectory(argv[i], root);
-        else processFile(argv[i], root);
+        if (S_ISDIR(pathStat.st_mode)) {
+            // If traverseDirectory returns true, set foundError to true
+            if (traverseDirectory(argv[i], root)) {
+                foundError = true;
+            }
+        } else {
+            if (processFile(argv[i], root)) {
+                foundError = true;
+            }
+        }
     }
 
     freeTrie(root);
-    return EXIT_SUCCESS;
+    return foundError ? EXIT_FAILURE : EXIT_SUCCESS;
 }
