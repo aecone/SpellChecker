@@ -1,18 +1,34 @@
+# CC = gcc
+# CFLAGS = -Wall -Werror -g
+# TARGET = spchk
+# SRCS = spchk.c
+# OBJS = $(SRCS:.c=.o)
+
+# all: $(TARGET)
+
+# $(TARGET): $(OBJS)
+# 	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+
+# .c.o:
+# 	$(CC) $(CFLAGS) -c $< -o $@
+
+# clean:
+# 	rm -f $(OBJS) $(TARGET)
+
+# .PHONY: all clean
+
 CC = gcc
-CFLAGS = -Wall -Werror -g
-TARGET = spchk
-SRCS = spchk.c
-OBJS = $(SRCS:.c=.o)
+CFLAGS = -Wall -g
+OBJ = main.o
+EXEC = spchk
 
-all: $(TARGET)
+$(EXEC): $(OBJ)
+	$(CC) $(CFLAGS) -o $(EXEC) $(OBJ)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
-
-.c.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+main.o: main.c spchk.h
+	$(CC) $(CFLAGS) -c main.c
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(EXEC) $(OBJ)
 
 .PHONY: all clean
