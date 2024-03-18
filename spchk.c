@@ -11,7 +11,7 @@
 
 #define BUFFER_SIZE 4096
 // Expand the alphabet size to handle both lowercase and uppercase letters
-#define ALPHABET_SIZE (26*2) 
+#define ALPHABET_SIZE (128) 
 
 typedef struct TrieNode {
     struct TrieNode* children[ALPHABET_SIZE];
@@ -21,19 +21,22 @@ typedef struct TrieNode {
 // Trie-related operations
 TrieNode* getNewTrieNode(void);
 void insertWord(TrieNode* root, const char* word);
-bool searchWord(TrieNode* root, const char* word);
+bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, const char* word);
 void freeTrie(TrieNode* root);
 
 // Utility functions
 bool isAllUpperCase(const char *word);
 bool hasOnlyFirstLetterCapitalized(const char *word);
-int charToIndex(char c);
+bool hasHyphen(const char* word);
+bool checkLowercase(TrieNode* lowercaseRoot, const char* word);
+bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* hyphenatedWord);
+
 
 // Processing functions
-bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long lineNo, int columnNo);
-bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo);
-bool processFile(const char *filePath, TrieNode *root);
-bool traverseDirectory(const char *dirPath, TrieNode *root);
+bool checkAndReportWord(char *word, TrieNode *root, TrieNode* lowercaseRoot, const char* filePath, long lineNo, int columnNo);
+bool processLine(char *line, TrieNode *root,TrieNode* lowercaseRoot, const char* filePath, long lineNo);
+bool processFile(const char *filePath, TrieNode *root, TrieNode* lowercaseRoot);
+bool traverseDirectory(const char *dirPath, TrieNode *root, TrieNode* lowercaseRoot);
 bool isValidWordChar(char c, bool start);
 // Main entry
 int main(int argc, char *argv[]);
@@ -44,7 +47,7 @@ int main(int argc, char *argv[]);
 // Check if word is all capitalized
 bool isAllUpperCase(const char *word) {
     while (*word) {
-        if (isalpha(*word) && islower(*word)) return false;
+        if (islower(*word)) return false;
         ++word;
     }
     return true;
@@ -56,49 +59,109 @@ bool hasOnlyFirstLetterCapitalized(const char *word) {
     for (int i = 1; word[i]; ++i) {
         if (isupper(word[i])) return false;
     }
-    printf("I'm capital letter first, %s\n", word);
+    printf("%s, has first letter capital\n", word);
     return true;
+}
+
+bool hasHyphen(const char* word) {
+    for (int i = 0; word[i] != '\0'; i++) {
+        if (word[i] == '-') {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool checkLowercase(TrieNode* lowercaseRoot, const char* word) {
+    TrieNode* crawl = lowercaseRoot;
+    for (int i = 0; word[i]; i++) {
+        int index = tolower(word[i]); // Always convert to lowercase
+        if (!crawl->children[index]) {
+            printf("Check lowercase: Word not found: Character is %c\n", word[i]);
+            return false; // Word not found
+        }
+        crawl = crawl->children[index];
+    }
+    return (crawl != NULL && crawl->isEndOfWord); // Word found
+}
+
+// Processes and checks each segment of a hyphenated word
+bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* hyphenatedWord) {
+    char tempWord[256]; // Temporary storage for word segments
+    int j = 0; // Index for tempWord
+    bool isValid = true; // Assume word is valid until proven otherwise
+
+    for (int i = 0; hyphenatedWord[i] != '\0'; ++i) {
+        if (hyphenatedWord[i] != '-') {
+            // Accumulate letters until a hyphen is found
+            tempWord[j++] = hyphenatedWord[i];
+        }
+
+        if (hyphenatedWord[i] == '-' || hyphenatedWord[i + 1] == '\0') {
+            // If end of segment or end of string, null-terminate and process the segment
+            tempWord[j] = '\0'; // Null-terminate the current segment
+
+            // Check the segment against the trie
+            if (!searchWord(root, lowercaseRoot, tempWord)) {
+                isValid = false; // Mark as invalid if the segment is not found
+                break; // Optionally break early if a segment is invalid
+            }
+
+            // Reset for next segment
+            j = 0;
+        }
+    }
+
+    return isValid;
 }
 
 // RULE: hello (OG), Hello (first cap), HELLO (all caps)-> correct 
 // RULE: MacDonald (OG), MACDONALD (all caps)-> correct
-bool searchWord(TrieNode* root, const char* word) {
+bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, const char* word) {
+    int iter = 0;
+    if(hasHyphen(word)){
+        if(processHyphenatedWord(root, lowercaseRoot, word)){
+            return true;
+        }
+    }
     // First check: if the word is all caps. HELLO == hEllO
     if (isAllUpperCase(word)) {
         TrieNode* crawl = root;
         for (int i = 0; word[i]; i++) {
-            int index = charToIndex(toupper(word[i])); // Convert to uppercase and then find the index
+            int index = word[i]; 
             if (!crawl->children[index]) {
-                printf("WRONG:all caps, %s\n", word);
-                return false;}
+                if(!checkLowercase(lowercaseRoot, word)){
+                    printf("WRONG:all caps, and all lowercase failed %s\n", word);
+                    return false;
+                }
+                else{
+                    printf("CORRECT:all caps, and all lowercase true %s\n", word);
+                    return true;
+                }
+            }
             crawl = crawl->children[index];
         }
         if (crawl != NULL && crawl->isEndOfWord) return true;
     }
 
-    // Second check: if the word has only the first letter capitalized. Hello == hello
+    // Second check: if the word has only the first letter capitalized. 
     if (hasOnlyFirstLetterCapitalized(word)) {
-        TrieNode* crawlFirstCapital = root;
-        // Convert the first letter of the word to lowercase for comparison
-        char lowerFirstLetter = tolower(word[0]);
-        // printf("%c\n", lowerFirstLetter);
-        // Get the index corresponding to the lowercase first letter
-        int index = charToIndex(lowerFirstLetter);
-        // printf("%d\n", index);
-        if (!crawlFirstCapital->children[index]) {
-            printf("WRONG:capital letter, %s\n", word);
-            return false;
+        if(checkLowercase(lowercaseRoot, word)){
+            printf("CORRECT: only one uppercase with word: %s\n", word);
+            return true;
         }
-         printf("cap letter fall thru, %s\n", word);
+        else{
+            printf("Checking exact match...");
+        }
     }
 
     // Third check: exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
     TrieNode* crawlExact = root;
-    for (int i = 0; word[i]; i++) {
-        int index = charToIndex(word[i]);
+    for (iter; word[iter]; iter++) {
+        int index = word[iter];
         if (!crawlExact->children[index]) {
             // If any character of the word is not found in the trie, return false
-            printf("WRONG:exact match, %s\n", word);
+            printf("WRONG:exact match, %s, character not found: %c\n", word, word[iter]);
             return false;
         }
         crawlExact = crawlExact->children[index];
@@ -126,9 +189,9 @@ bool isValidWordChar(char c, bool start) {
 
 // Report a word if it's not found in the trie. Returns true if an incorrect word was found, false otherwise
 //RULE: every time finds an incorrect word, report the word along with the file, the line, and column number
-bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long lineNo, int columnNo) {
-    if (!searchWord(root, word)) {
-        // printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, word);
+bool checkAndReportWord(char *word, TrieNode *root, TrieNode* lowercaseRoot, const char* filePath, long lineNo, int columnNo) {
+    if (!searchWord(root, lowercaseRoot, word)) {
+        printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, word);
         return true; // Incorrect word found
     }
     return false; // No incorrect word found
@@ -137,7 +200,7 @@ bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long l
 // Process a line from a file, checking each word against a trie data structure. Returns true if an incorrect word was found, false otherwise
 // RULE: hyphenated words are correct if all component words are correctly spelled
 // Returns true if any incorrect word was found in the line, false otherwise
-bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo) {
+bool processLine(char *line, TrieNode *root, TrieNode* lowercaseRoot, const char* filePath, long lineNo) {
     char word[BUFFER_SIZE];
     int wordIndex = 0;
     int columnNo = 1;
@@ -154,7 +217,7 @@ bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo) 
             char *component = strtok(word, "-");
             int componentColumn = startColumn;
             while (component != NULL) {
-                if (checkAndReportWord(component, root, filePath, lineNo, componentColumn)) {
+                if (checkAndReportWord(component, root, lowercaseRoot, filePath, lineNo, componentColumn)) {
                     foundIncorrectWord = true;
                 }
                 component = strtok(NULL, "-");
@@ -167,7 +230,7 @@ bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo) 
 
     if (wordIndex > 0) {
         word[wordIndex] = '\0';
-        if (checkAndReportWord(word, root, filePath, lineNo, startColumn)) {
+        if (checkAndReportWord(word, root, lowercaseRoot, filePath, lineNo, startColumn)) {
             foundIncorrectWord = true;
         }
     }
@@ -181,7 +244,7 @@ bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo) 
 
 //RULE: Must print error if file can't be opened. 
 // Returns true if any incorrect word was found in the file, false otherwise
-bool processFile(const char *filePath, TrieNode *root) {
+bool processFile(const char *filePath, TrieNode *root, TrieNode* lowercaseRoot) {
     int fd = open(filePath, O_RDONLY);
     if (fd < 0) {
         perror("Failed to open file");
@@ -196,7 +259,6 @@ bool processFile(const char *filePath, TrieNode *root) {
         close(fd);
         return true; // Memory allocation failure is treated as an error
     }
-    size_t line_capacity = BUFFER_SIZE;
     size_t line_length = 0;
     long lineNo = 1;
     bool foundIncorrectWord = false;
@@ -205,7 +267,7 @@ bool processFile(const char *filePath, TrieNode *root) {
         for (int i = 0; i < bytes_read; ++i) {
             if (buf[i] == '\n') {
                 line[line_length] = '\0';
-                if (processLine(line, root, filePath, lineNo++)) {
+                if (processLine(line, root, lowercaseRoot, filePath, lineNo++)) {
                     foundIncorrectWord = true;
                 }
                 line_length = 0;
@@ -216,7 +278,7 @@ bool processFile(const char *filePath, TrieNode *root) {
     }
     if (line_length > 0) {
         line[line_length] = '\0';
-        if (processLine(line, root, filePath, lineNo)) {
+        if (processLine(line, root, lowercaseRoot, filePath, lineNo)) {
             foundIncorrectWord = true;
         }
     }
@@ -234,7 +296,7 @@ bool processFile(const char *filePath, TrieNode *root) {
 //Check spelling in all files end w .txt (in any order)
 //Ignore files/dir who begin w . 
 // Traverse a directory recursively
-bool traverseDirectory(const char *dirPath, TrieNode *root) {
+bool traverseDirectory(const char *dirPath, TrieNode *root, TrieNode* lowercaseRoot) {
     DIR *dir = opendir(dirPath);
     if (!dir) {
         perror("Failed to open directory");
@@ -256,11 +318,11 @@ bool traverseDirectory(const char *dirPath, TrieNode *root) {
         }
 
         if (S_ISDIR(entryStat.st_mode)) {
-            if (traverseDirectory(fullPath, root)) {
+            if (traverseDirectory(fullPath, root, lowercaseRoot)) {
                 foundIncorrectWord = true;
             }
         } else if (S_ISREG(entryStat.st_mode) && strstr(fullPath, ".txt")) {
-            if (processFile(fullPath, root)) {
+            if (processFile(fullPath, root, lowercaseRoot)) {
                 foundIncorrectWord = true;
             }
         }
@@ -287,19 +349,13 @@ TrieNode* getNewTrieNode(void) {
     return pNode;
 }
 
-// Function to convert character to index
-int charToIndex(char c) {
-    if (isupper(c)) return c - 'A' + 26; // Adjust index for uppercase letters
-    else return c - 'a';
-}
-
 // Insert a word into the trie
 void insertWord(TrieNode* root, const char* word) {
     TrieNode* crawl = root;
     bool isValidWord = true;
 
     for (int i = 0; word[i] && isValidWord; i++) {
-        int index = charToIndex(word[i]);
+        int index = word[i];
 
         if (index < 0 || index >= ALPHABET_SIZE) {
             isValidWord = false;
@@ -328,8 +384,8 @@ void freeTrie(TrieNode* root) {
     free(root);
 }
 
-// Load the dictionary
-void loadDictionary(TrieNode* root, const char* dictionaryPath) {
+// Load the dictionary and create two tries: one as is and another with all words in lowercase
+void loadDictionary(TrieNode* root, TrieNode* lowercaseRoot, const char* dictionaryPath) {
     int fd = open(dictionaryPath, O_RDONLY);
     if (fd < 0) {
         perror("Unable to open the dictionary file");
@@ -338,15 +394,21 @@ void loadDictionary(TrieNode* root, const char* dictionaryPath) {
 
     char buf[BUFFER_SIZE];
     int bytes_read;
-    int word_index = 0;
+    int word_index = 0; // Declare and initialize word_index here
     char word[BUFFER_SIZE] = {0};
+    char lowerWord[BUFFER_SIZE] = {0}; // For storing the lowercase version
 
     while ((bytes_read = read(fd, buf, sizeof(buf)-1)) > 0) {
         for (int i = 0; i < bytes_read; ++i) {
             if (buf[i] == '\n' || buf[i] == '\r') {
                 if (word_index > 0) { // We have a complete word to process
                     word[word_index] = '\0'; // Null-terminate the word
-                    insertWord(root, word);
+                    strcpy(lowerWord, word); // Copy original word to lowerWord
+                    for (int j = 0; lowerWord[j]; ++j) {
+                        lowerWord[j] = tolower(lowerWord[j]); // Convert to lowercase
+                    }
+                    insertWord(root, word); // Insert original word
+                    insertWord(lowercaseRoot, lowerWord); // Insert lowercase word
                     word_index = 0; // Reset for the next word
                 }
             } else {
@@ -355,11 +417,18 @@ void loadDictionary(TrieNode* root, const char* dictionaryPath) {
         }
     }
     if (word_index > 0) { // Insert last word if exists
-        word[word_index] = '\0';
-        insertWord(root, word);
+        word[word_index] = '\0'; // Null-terminate the word
+        strcpy(lowerWord, word); // Copy original word to lowerWord
+        for (int j = 0; lowerWord[j]; ++j) {
+            lowerWord[j] = tolower(lowerWord[j]); // Convert to lowercase
+        }
+        insertWord(root, word); // Insert original word
+        insertWord(lowercaseRoot, lowerWord); // Insert lowercase word
     }
     close(fd);
 }
+
+
 
 // RULE:first arg is dictionary file path
 // RULE: other args after are txt files/directories paths
@@ -372,7 +441,8 @@ int main(int argc, char *argv[]) {
     }
 
     TrieNode* root = getNewTrieNode();
-    loadDictionary(root, argv[1]);
+    TrieNode* lowercaseRoot = getNewTrieNode();
+    loadDictionary(root, lowercaseRoot, argv[1]);
 
     bool foundError = false;
     for (int i = 2; i < argc; i++) {
@@ -385,11 +455,11 @@ int main(int argc, char *argv[]) {
 
         if (S_ISDIR(pathStat.st_mode)) {
             // If traverseDirectory returns true, set foundError to true
-            if (traverseDirectory(argv[i], root)) {
+            if (traverseDirectory(argv[i], root, lowercaseRoot)) {
                 foundError = true;
             }
         } else {
-            if (processFile(argv[i], root)) {
+            if (processFile(argv[i], root, lowercaseRoot)) {
                 foundError = true;
             }
         }

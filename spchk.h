@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #define BUFFER_SIZE 4096
-#define ALPHABET_SIZE (26*2) // Expand the alphabet size to handle both lowercase and uppercase letters
+#define ALPHABET_SIZE (128) // Expand the alphabet size to handle both lowercase and uppercase letters
 
 // typedef struct TrieNode {
 //     struct TrieNode* children[ALPHABET_SIZE];
