@@ -19,14 +19,14 @@
 
 CC = gcc
 CFLAGS = -Wall -g
-OBJ = main.o
+OBJ = spchk.o
 EXEC = spchk
 
 $(EXEC): $(OBJ)
 	$(CC) $(CFLAGS) -o $(EXEC) $(OBJ)
 
-main.o: main.c spchk.h
-	$(CC) $(CFLAGS) -c main.c
+spchk.o: spchk.c spchk.h
+	$(CC) $(CFLAGS) -c spchk.c
 
 clean:
 	rm -f $(EXEC) $(OBJ)

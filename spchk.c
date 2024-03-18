@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include "spchk.h"
 
 #define BUFFER_SIZE 4096
 // Expand the alphabet size to handle both lowercase and uppercase letters
@@ -16,8 +17,6 @@ typedef struct TrieNode {
     struct TrieNode* children[ALPHABET_SIZE];
     bool isEndOfWord;
 } TrieNode;
-
-// Function declarations --------------------------------------------------------
 
 // Trie-related operations
 TrieNode* getNewTrieNode(void);
@@ -36,7 +35,6 @@ bool processLine(char *line, TrieNode *root, const char* filePath, long lineNo);
 bool processFile(const char *filePath, TrieNode *root);
 bool traverseDirectory(const char *dirPath, TrieNode *root);
 bool isValidWordChar(char c, bool start);
-
 // Main entry
 int main(int argc, char *argv[]);
 
@@ -289,15 +287,28 @@ int charToIndex(char c) {
 // Insert a word into the trie
 void insertWord(TrieNode* root, const char* word) {
     TrieNode* crawl = root;
-    for (int i = 0; word[i]; i++) {
+    bool isValidWord = true;
+
+    for (int i = 0; word[i] && isValidWord; i++) {
         int index = charToIndex(word[i]);
+
+        if (index < 0 || index >= ALPHABET_SIZE) {
+            isValidWord = false;
+            break;
+        }
+
         if (!crawl->children[index]) {
             crawl->children[index] = getNewTrieNode();
         }
         crawl = crawl->children[index];
     }
-    crawl->isEndOfWord = true;
+
+    // Only mark the end of the word if it is valid
+    if (isValidWord && crawl != NULL) {
+        crawl->isEndOfWord = true;
+    }
 }
+
 
 // Free the trie memory recursively
 void freeTrie(TrieNode* root) {
