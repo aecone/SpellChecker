@@ -59,7 +59,7 @@ bool hasOnlyFirstLetterCapitalized(const char *word) {
     for (int i = 1; word[i]; ++i) {
         if (isupper(word[i])) return false;
     }
-    printf("%s, has first letter capital\n", word);
+    // printf("%s, has first letter capital\n", word);
     return true;
 }
 
@@ -145,14 +145,25 @@ bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, const char* word) {
     }
 
     // Second check: if the word has only the first letter capitalized. 
-    if (hasOnlyFirstLetterCapitalized(word)) {
-        if(checkLowercase(lowercaseRoot, word)){
-            printf("CORRECT: only one uppercase with word: %s\n", word);
-            return true;
+    if (hasOnlyFirstLetterCapitalized(word)) { 
+        // if(checkLowercase(lowercaseRoot, word)){
+        //     printf("CORRECT: only one uppercase with word: %s\n", word);
+        //     return true;
+        // }
+        // else{
+        //     printf("Checking exact match...");
+        // }
+        TrieNode* crawl = root;
+        for(int i = 0; word[i]; i++){
+            // Convert the letter of the word to lowercase for comparison
+            int lowerLetterIndex = tolower(word[i]);
+            // Get the index corresponding to the lowercase first letter
+            if (!crawl->children[lowerLetterIndex]) {
+                return false;
+            }
+            crawl = crawl->children[lowerLetterIndex];
         }
-        else{
-            printf("Checking exact match...");
-        }
+        if (crawl != NULL && crawl->isEndOfWord) return true;
     }
 
     // Third check: exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
