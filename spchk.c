@@ -56,6 +56,7 @@ bool hasOnlyFirstLetterCapitalized(const char *word) {
     for (int i = 1; word[i]; ++i) {
         if (isupper(word[i])) return false;
     }
+    printf("I'm capital letter first, %s\n", word);
     return true;
 }
 
@@ -67,7 +68,9 @@ bool searchWord(TrieNode* root, const char* word) {
         TrieNode* crawl = root;
         for (int i = 0; word[i]; i++) {
             int index = charToIndex(toupper(word[i])); // Convert to uppercase and then find the index
-            if (!crawl->children[index]) return false;
+            if (!crawl->children[index]) {
+                printf("WRONG:all caps, %s\n", word);
+                return false;}
             crawl = crawl->children[index];
         }
         if (crawl != NULL && crawl->isEndOfWord) return true;
@@ -78,11 +81,15 @@ bool searchWord(TrieNode* root, const char* word) {
         TrieNode* crawlFirstCapital = root;
         // Convert the first letter of the word to lowercase for comparison
         char lowerFirstLetter = tolower(word[0]);
+        // printf("%c\n", lowerFirstLetter);
         // Get the index corresponding to the lowercase first letter
         int index = charToIndex(lowerFirstLetter);
+        // printf("%d\n", index);
         if (!crawlFirstCapital->children[index]) {
+            printf("WRONG:capital letter, %s\n", word);
             return false;
         }
+         printf("cap letter fall thru, %s\n", word);
     }
 
     // Third check: exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
@@ -91,6 +98,7 @@ bool searchWord(TrieNode* root, const char* word) {
         int index = charToIndex(word[i]);
         if (!crawlExact->children[index]) {
             // If any character of the word is not found in the trie, return false
+            printf("WRONG:exact match, %s\n", word);
             return false;
         }
         crawlExact = crawlExact->children[index];
@@ -99,6 +107,7 @@ bool searchWord(TrieNode* root, const char* word) {
     if (crawlExact != NULL && crawlExact->isEndOfWord) return true;
 
     // If none of the conditions are met, the word is not in the dictionary
+    printf("WRONG:none met, %s\n", word);
     return false;
 }
 
@@ -119,7 +128,7 @@ bool isValidWordChar(char c, bool start) {
 //RULE: every time finds an incorrect word, report the word along with the file, the line, and column number
 bool checkAndReportWord(char *word, TrieNode *root, const char* filePath, long lineNo, int columnNo) {
     if (!searchWord(root, word)) {
-        printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, word);
+        // printf("%s (%ld:%d): %s\n", filePath, lineNo, columnNo, word);
         return true; // Incorrect word found
     }
     return false; // No incorrect word found
