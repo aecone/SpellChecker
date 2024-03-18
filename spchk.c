@@ -21,7 +21,7 @@ typedef struct TrieNode {
 // Trie-related operations
 TrieNode* getNewTrieNode(void);
 void insertWord(TrieNode* root, const char* word);
-bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, const char* word);
+bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, char* word);
 void freeTrie(TrieNode* root);
 
 // Utility functions
@@ -29,6 +29,9 @@ bool isAllUpperCase(const char *word);
 bool hasOnlyFirstLetterCapitalized(const char *word);
 bool hasHyphen(const char* word);
 bool checkLowercase(TrieNode* lowercaseRoot, const char* word);
+int isLeadingPunctuation(char c);
+int isTrailingPunctuation(char c);
+void trimPunctuation(char* word);
 bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* hyphenatedWord);
 
 
@@ -85,6 +88,42 @@ bool checkLowercase(TrieNode* lowercaseRoot, const char* word) {
     return (crawl != NULL && crawl->isEndOfWord); // Word found
 }
 
+// Function to check if a character is a punctuation that should be ignored at the start
+int isLeadingPunctuation(char c) {
+    return c == '\'' || c == '"' || c == '(' || c == '{' || c == '[' || c == ')' || c == '}' || c == ']';
+}
+
+// Function to check if a character is a punctuation that should be ignored at the end
+int isTrailingPunctuation(char c) {
+    return ispunct(c) || isLeadingPunctuation(c);
+}
+
+// Function to trim leading and trailing punctuation from a word, modifying the word in-place
+void trimPunctuation(char* word) {
+    int length = strlen(word);
+    int start = 0, end = length - 1;
+
+    // Find the new start index, skipping leading punctuation
+    while(start < length && isLeadingPunctuation(word[start])) {
+        start++;
+    }
+
+    // Find the new end index, skipping trailing punctuation
+    while(end > start && isTrailingPunctuation(word[end])) {
+        end--;
+    }
+
+    // Number of characters to keep
+    int keepCount = end - start + 1;
+
+    // Shift the word to the beginning of the array
+    for (int i = 0; i < keepCount; i++) {
+        word[i] = word[start + i];
+    }
+    // Null-terminate the modified word
+    word[keepCount] = '\0';
+}
+
 // Processes and checks each segment of a hyphenated word
 bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* hyphenatedWord) {
     char tempWord[256]; // Temporary storage for word segments
@@ -117,7 +156,8 @@ bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* 
 
 // RULE: hello (OG), Hello (first cap), HELLO (all caps)-> correct 
 // RULE: MacDonald (OG), MACDONALD (all caps)-> correct
-bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, const char* word) {
+bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, char* word) {
+    trimPunctuation(word);
     int iter = 0;
     if(hasHyphen(word)){
         if(processHyphenatedWord(root, lowercaseRoot, word)){
