@@ -64,10 +64,10 @@ bool hasOnlyFirstLetterCapitalized(const char *word) {
     for (int i = 1; word[i]; ++i) {
         if (isupper(word[i])) return false;
     }
-    // printf("%s, has first letter capital\n", word);
     return true;
 }
 
+//Check if word has a hyphen in it
 bool hasHyphen(const char* word) {
     for (int i = 0; word[i] != '\0'; i++) {
         if (word[i] == '-') {
@@ -77,6 +77,7 @@ bool hasHyphen(const char* word) {
     return false;
 }
 
+//Check if word has a space in it
 bool hasSpace(const char* word) {
     for (int i = 0; word[i] != '\0'; i++) {
         if (word[i] == ' ') {
@@ -86,12 +87,13 @@ bool hasSpace(const char* word) {
     return false;
 }
 
+//Check if the word's all lowercase version exists: ex: for Apple, check if apple exists
 bool checkLowercase(TrieNode* lowercaseRoot, const char* word) {
     TrieNode* crawl = lowercaseRoot;
     for (int i = 0; word[i]; i++) {
         int index = tolower(word[i]); // Always convert to lowercase
         if (!crawl->children[index]) {
-            printf("Check lowercase: Word not found: Character is %c\n", word[i]);
+            // printf("Check lowercase: Word not found: Character is %c\n", word[i]);
             return false; // Word not found
         }
         crawl = crawl->children[index];
@@ -99,66 +101,57 @@ bool checkLowercase(TrieNode* lowercaseRoot, const char* word) {
     return (crawl != NULL && crawl->isEndOfWord); // Word found
 }
 
-// Function to check if a character is a punctuation that should be ignored at the start
+// Check if a character is a punctuation that should be ignored at the start
 int isLeadingPunctuation(char c) {
     return c == '\'' || c == '"' || c == '(' || c == '{' || c == '[';
 }
 
-// Function to check if a character is a punctuation that should be ignored at the end
+// Check if a character is a punctuation that should be ignored at the end
 int isTrailingPunctuation(char c) {
     return ispunct(c) || isLeadingPunctuation(c) || c == ')' || c == '}' || c == ']';
 }
 
-// Function to trim leading and trailing punctuation from a word, modifying the word in-place
+// Trims leading and ending punctuation from a word
 void trimPunctuation(char* word) {
     int length = strlen(word);
     int start = 0, end = length - 1;
 
-    // Find the new start index, skipping leading punctuation
     while(start < length && isLeadingPunctuation(word[start])) {
         start++;
     }
 
-    // Find the new end index, skipping trailing punctuation
     while(end > start && isTrailingPunctuation(word[end])) {
         end--;
     }
 
-    // Number of characters to keep
     int keepCount = end - start + 1;
 
-    // Shift the word to the beginning of the array
     for (int i = 0; i < keepCount; i++) {
         word[i] = word[start + i];
     }
-    // Null-terminate the modified word
     word[keepCount] = '\0';
     
 }
 
 // Processes and checks each segment of a hyphenated word
 bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* hyphenatedWord) {
-    char tempWord[256]; // Temporary storage for word segments
-    int j = 0; // Index for tempWord
-    bool isValid = true; // Assume word is valid until proven otherwise
-
+    char tempWord[256]; 
+    int j = 0;
+    bool isValid = true; 
     for (int i = 0; hyphenatedWord[i] != '\0'; ++i) {
         if (hyphenatedWord[i] != '-') {
-            // Accumulate letters until a hyphen is found
             tempWord[j++] = hyphenatedWord[i];
         }
 
         if (hyphenatedWord[i] == '-' || hyphenatedWord[i + 1] == '\0') {
-            // If end of segment or end of string, null-terminate and process the segment
-            tempWord[j] = '\0'; // Null-terminate the current segment
+            tempWord[j] = '\0'; 
 
             // Check the segment against the trie
             if (!searchWord(root, lowercaseRoot, tempWord)) {
-                isValid = false; // Mark as invalid if the segment is not found
-                break; // Optionally break early if a segment is invalid
+                isValid = false; 
+                break;
             }
 
-            // Reset for next segment
             j = 0;
         }
     }
@@ -168,31 +161,30 @@ bool processHyphenatedWord(TrieNode* root, TrieNode* lowercaseRoot, const char* 
 
 // Processes and checks each segment of words separated by one or more spaces
 bool processSpaceSeparatedWords(TrieNode* root, TrieNode* lowercaseRoot, const char* spaceSeparatedWords) {
-    char tempWord[256]; // Temporary storage for word segments
-    int j = 0; // Index for tempWord
-    bool isValid = true; // Assume word is valid until proven otherwise
+    char tempWord[256]; 
+    int j = 0; 
+    bool isValid = true; 
 
     for (int i = 0; spaceSeparatedWords[i] != '\0'; ++i) {
         if (spaceSeparatedWords[i] == ' ') {
-            if (j > 0) { // Check if there's a word before the space
-                tempWord[j] = '\0'; // Null-terminate the current segment
+            if (j > 0) { 
+                tempWord[j] = '\0'; 
                 if (!searchWord(root, lowercaseRoot, tempWord)) {
-                    isValid = false; // Mark as invalid if the segment is not found
-                    break; // Optionally break early if a segment is invalid
+                    isValid = false; 
+                    break;
                 }
-                j = 0; // Reset for next segment
+                j = 0; 
             }
             // Skip consecutive spaces
             while (spaceSeparatedWords[i+1] == ' ') i++;
         } else {
-            // Accumulate letters until a space is found
             tempWord[j++] = spaceSeparatedWords[i];
         }
     }
 
     // Check the last word if there was no trailing space
     if (j > 0) {
-        tempWord[j] = '\0'; // Null-terminate the last word
+        tempWord[j] = '\0'; 
         if (!searchWord(root, lowercaseRoot, tempWord)) {
             isValid = false;
         }
@@ -201,33 +193,36 @@ bool processSpaceSeparatedWords(TrieNode* root, TrieNode* lowercaseRoot, const c
     return isValid;
 }
 
-
+// MAIN SEARCH FUNCTION: performs checks on words to see if they are in dictionary/valid
 // RULE: hello (OG), Hello (first cap), HELLO (all caps)-> correct 
 // RULE: MacDonald (OG), MACDONALD (all caps)-> correct
 bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, char* word) {
     trimPunctuation(word); //trims the word to ignore certain punctuation
+    
+    //If the line includes a space, it processes the words separately by space
     if(hasSpace(word)){
         if(processSpaceSeparatedWords(root, lowercaseRoot, word)){
             return true;
         }
     }
+
+    //If the line includes a hyphen, it processes the words separately by hyphen
     if(hasHyphen(word)){
         if(processHyphenatedWord(root, lowercaseRoot, word)){
             return true;
         }
     }
-    // First check: if the word is all caps. HELLO == hEllO
+
+    // If the word is all caps, it checks if any other variation of the word exists
     if (isAllUpperCase(word)) {
         TrieNode* crawl = root;
         for (int i = 0; word[i]; i++) {
             int index = word[i]; 
             if (!crawl->children[index]) {
                 if(!checkLowercase(lowercaseRoot, word)){
-                    printf("WRONG:all caps, and all lowercase failed %s\n", word);
                     return false;
                 }
                 else{
-                    printf("CORRECT:all caps, and all lowercase true %s\n", word);
                     return true;
                 }
             }
@@ -236,20 +231,11 @@ bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, char* word) {
         if (crawl != NULL && crawl->isEndOfWord) return true;
     }
 
-    // Second check: if the word has only the first letter capitalized. 
+    // If the word has only the first letter capitalized, it checks if the all lowercase version of the word exists
     if (hasOnlyFirstLetterCapitalized(word)) { 
-        // if(checkLowercase(lowercaseRoot, word)){
-        //     printf("CORRECT: only one uppercase with word: %s\n", word);
-        //     return true;
-        // }
-        // else{
-        //     printf("Checking exact match...");
-        // }
         TrieNode* crawl = root;
         for(int i = 0; word[i]; i++){
-            // Convert the letter of the word to lowercase for comparison
             int lowerLetterIndex = tolower(word[i]);
-            // Get the index corresponding to the lowercase first letter
             if (!crawl->children[lowerLetterIndex]) {
                 return false;
             }
@@ -258,22 +244,17 @@ bool searchWord(TrieNode* root, TrieNode* lowercaseRoot, char* word) {
         if (crawl != NULL && crawl->isEndOfWord) return true;
     }
 
-    // Third check: exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
+    // If other checks don't return true, checks exact match (with any capital letters or no capital letters) Hello == Hello, HEllo == HEllo, hello == hello
     TrieNode* crawlExact = root;
     for (int iter = 0; word[iter]; iter++) {
         int index = word[iter];
         if (!crawlExact->children[index]) {
-            // If any character of the word is not found in the trie, return false
-            printf("WRONG:exact match, %s, character not found: %c\n", word, word[iter]);
             return false;
         }
         crawlExact = crawlExact->children[index];
     }
-    // Check if the traversal reaches the end of a word in the trie
     if (crawlExact != NULL && crawlExact->isEndOfWord) return true;
 
-    // If none of the conditions are met, the word is not in the dictionary
-    printf("WRONG:none met, %s\n", word);
     return false;
 }
 
