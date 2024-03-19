@@ -289,27 +289,33 @@ bool processLine(char *line, TrieNode *root, TrieNode* lowercaseRoot, const char
     char word[BUFFER_SIZE];
     int wordIndex = 0;
     int columnNo = 1;
-    int startColumn = 0;
+    int startColumn = 1; // Initialize startColumn to 1 for accurate column tracking
     bool foundIncorrectWord = false;
+
     for (int i = 0; line[i] != '\0'; i++) {
-        if (isValidWordChar(line[i], wordIndex == 0)) {
-            if (wordIndex == 0) startColumn = columnNo;
-            word[wordIndex++] = line[i];
+        if (isValidWordChar(line[i], wordIndex == 0) || line[i] == ' ') {
+            if (line[i] == ' ') {
+                if (wordIndex > 0) {
+                    word[wordIndex] = '\0';
+                    if (checkAndReportWord(word, root, lowercaseRoot, filePath, lineNo, startColumn)) {
+                        foundIncorrectWord = true;
+                    }
+                    wordIndex = 0; 
+                }
+                startColumn = columnNo + 1;
+            } else {
+                if (wordIndex == 0) startColumn = columnNo;
+                word[wordIndex++] = line[i];
+            }
         } else if (wordIndex > 0) {
             word[wordIndex] = '\0';
-            
-            char *component = strtok(word, "-");
-            int componentColumn = startColumn;
-            while (component != NULL) {
-                if (checkAndReportWord(component, root, lowercaseRoot, filePath, lineNo, componentColumn)) {
-                    foundIncorrectWord = true;
-                }
-                component = strtok(NULL, "-");
-                if (component != NULL) componentColumn += strlen(component) + 1;
+            if (checkAndReportWord(word, root, lowercaseRoot, filePath, lineNo, startColumn)) {
+                foundIncorrectWord = true;
             }
             wordIndex = 0;
+            startColumn = columnNo + 1;
         }
-        columnNo++;
+        columnNo++; 
     }
 
     if (wordIndex > 0) {
@@ -321,6 +327,7 @@ bool processLine(char *line, TrieNode *root, TrieNode* lowercaseRoot, const char
 
     return foundIncorrectWord;
 }
+
 
 
 // SECTION 3 ----------------------------------------------------------------
