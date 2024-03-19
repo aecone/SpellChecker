@@ -67,7 +67,7 @@ In this command, `dictionary.txt` is the path to the dictionary file, and `input
 **Expected Outcome:**
 
 - Exits with `EXIT_FAILURE`.
-- The `testFail` directory contains files that open successfully but include spelling errors.
+- The `testFail` directory contains files and any directory's file that open successfully but include spelling errors.
 
 **Test Files in `testFail` Directory:**
 
@@ -88,6 +88,20 @@ In this command, `dictionary.txt` is the path to the dictionary file, and `input
 
 - `spaces.txt`:
   - Tests the correct column numbers output for words with incorrect words, such as having < / at start of word or having numbers within the word. (dictionary word:, "buffalo", "bug", "poop").
+
+**Test Directory in `testFail` Directory:**
+
+**Command:**
+
+```bash
+./spchk dict.txt testFail/testTraverse
+```
+
+**Expected Outcome:**
+
+- Exits with `EXIT_FAILURE`.
+- The `testTraverse` directory contains the fail.txt file that open successfully but include spelling errors ( contains a nonexistent dictionary word)
+- Only shows the fail.txt error, nothing else from grandparent directory
 
 ### Error Handling
 
