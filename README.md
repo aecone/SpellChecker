@@ -1,4 +1,4 @@
-# CS214 Systems Programming Project Name: SpellChecker; Names & NetIDs: Natalie Chow (njc151) and Andrea Kim (alk203)
+# Spelling Check
 
 ## OVERVIEW:
 
